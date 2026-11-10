@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Автотесты | График ОКК</title>
+<style>
+body { font-family: 'Segoe UI', Tahoma, sans-serif; max-width: 800px; margin: 20px auto; padding: 0 15px; background: #f8f9fa; color: #333; }
+h1 { color: #003366; font-size: 1.3rem; }
+.test { padding: 8px 12px; border-radius: 6px; margin: 4px 0; font-size: 0.9rem; font-family: monospace; }
+.pass { background: #d4edda; color: #155724; }
+.fail { background: #f8d7da; color: #721c24; }
+#summary { font-size: 1.1rem; font-weight: bold; padding: 12px; border-radius: 6px; margin-top: 15px; }
+#summary.ok { background: #d4edda; color: #155724; }
+#summary.bad { background: #f8d7da; color: #721c24; }
+.note { font-size: 0.85rem; color: #666; }
+</style>
+</head>
+<body>
+<h1>Автотесты логики графика</h1>
+<p class="note">Открывается на размещённом сайте (http/https), не через file://.
+Загружает index.html в невидимый фрейм и проверяет расчёт смен, календарь 2027 и правила подмен.</p>
+<div id="results">Загрузка приложения…</div>
+<div id="summary"></div>
+
+<iframe id="app" src="./index.html" style="display:none"></iframe>
+
+<script>
+const results = [];
+function t(name, fn) {
+    try {
+        fn();
+        results.push({ name, ok: true });
+    } catch (e) {
+        results.push({ name, ok: false, err: e.message });
+    }
+}
+function assertEq(actual, expected, label) {
+    if (actual !== expected) throw new Error(`${label || ''}: ожидалось «${expected}», получено «${actual}»`);
+}
+function assertTrue(cond, label) { if (!cond) throw new Error(label || 'условие ложно'); }
+
+function renderResults() {
+    const box = document.getElementById('results');
+    const passed = results.filter(r => r.ok).length;
+    box.innerHTML = results.map(r =>
+        `<div class="test ${r.ok ? 'pass' : 'fail'}">${r.ok ? '✅' : '❌'} ${r.name}${r.ok ? '' : ' — ' + r.err}</div>`
+    ).join('');
+    const s = document.getElementById('summary');
+    s.className = passed === results.length ? 'ok' : 'bad';
+    s.textContent = `Пройдено ${passed} из ${results.length}` + (passed === results.length ? ' — всё зелёное, можно выкладывать.' : ' — есть ошибки!');
+}
+
+document.getElementById('app').addEventListener('load', () => {
+    setTimeout(runTests, 800); // даём приложению отрендериться
+});
+
+function runTests() {
+    const win = document.getElementById('app').contentWindow;
+    if (!win.getBaseStatus) { document.getElementById('results').textContent = 'Не удалось получить доступ к index.html — откройте тесты с того же сайта (http/https).'; return; }
+
+    const ANCHOR = new Date(2026, 0, 1).getTime();
+    const DAY = 1000 * 60 * 60 * 24;
+    const d = (y, m, day) => new Date(y, m - 1, day);
+    const daysSince = (date) => Math.floor((date.getTime() - ANCHOR) / DAY);
+
+    // Независимые эталонные формулы (дублируют логику — так и должно быть)
+    const ref2_2 = (ds, off) => { const p = ((ds - off) % 4 + 4) % 4; return (p === 0 || p === 1) ? 'work' : 'off'; };
+    const refDDNN3 = (ds, off) => { const p = ((ds - off) % 8 + 8) % 8; return ['work','work','off','night','night','off','off','off'][p]; };
+
+    const mkEmp = (shift, offset) => ({ id: 999, name: 'Тест', number: '0', role: 'Инженер', group: 'окк ангар', shift, offset, absences: [], subs: [] });
+
+    // === 1. Цикл 2/2: все смещения, весь январь–март 2027 ===
+    t('Цикл 2/2: смещения 0–3, январь–март 2027', () => {
+        for (let off = 0; off < 4; off++) {
+            const emp = mkEmp('2_2', off);
+            for (let day = 1; day <= 90; day++) {
+                const date = new Date(ANCHOR + day * DAY);
+                assertEq(win.getBaseStatus(emp, date), ref2_2(day, off), `2/2 off=${off} ${date.toISOString().slice(0,10)}`);
+            }
+        }
+    });
+
+    // === 2. Цикл Д-Д-В-Н-Н-3В: все смещения 0–7, полный год 2027 ===
+    t('Цикл Д-Д-В-Н-Н-3В: смещения 0–7, весь 2027', () => {
+        for (let off = 0; off < 8; off++) {
+            const emp = mkEmp('DDNN3', off);
+            for (let day = daysSince(d(2027,1,1)); day <= daysSince(d(2027,12,31)); day++) {
+                const date = new Date(ANCHOR + day * DAY);
+                assertEq(win.getBaseStatus(emp, date), refDDNN3(day, off), `DDNN3 off=${off} ${date.toISOString().slice(0,10)}`);
+            }
+        }
+    });
+
+    // === 3. График 5/2 и праздники/переносы 2027 ===
+    t('5/2: перенос 20.02.2027 — рабочая суббота', () => {
+        assertEq(win.getBaseStatus(mkEmp('5_2', 0), d(2027, 2, 20)), 'work', '20.02.2027');
+    });
+    t('5/2: перенос 22.02.2027 — выходной', () => {
+        assertEq(win.getBaseStatus(mkEmp('5_2', 0), d(2027, 2, 22)), 'holiday', '22.02.2027');
+    });
+    t('5/2: 31.12.2027 — выходной (перенос)', () => {
+        assertEq(win.getBaseStatus(mkEmp('5_2', 0), d(2027, 12, 31)), 'holiday', '31.12.2027');
+    });
+    t('5/2: обычная суббота — выходной, обычный понедельник — работа', () => {
+        assertEq(win.getBaseStatus(mkEmp('5_2', 0), d(2027, 3, 13)), 'off', 'сб 13.03');
+        assertEq(win.getBaseStatus(mkEmp('5_2', 0), d(2027, 3, 15)), 'work', 'пн 15.03');
+    });
+    t('2/2: переносы 5/2 на его цикл не влияют', () => {
+        const emp = mkEmp('2_2', 0);
+        assertEq(win.getBaseStatus(emp, d(2027, 2, 20)), ref2_2(daysSince(d(2027,2,20)), 0), '20.02 для 2/2');
+        assertEq(win.getBaseStatus(emp, d(2027, 2, 22)), ref2_2(daysSince(d(2027,2,22)), 0), '22.02 для 2/2');
+    });
+
+    // === 4. Отсутствия и подмены ===
+    t('Отсутствие: границы периода включительно', () => {
+        const emp = mkEmp('2_2', 0);
+        emp.absences = [{ type: 'vacation', start: '2027-05-10', end: '2027-05-20' }];
+        assertEq(win.getAbsenceType(emp, '2027-05-09'), null, 'день до отпуска');
+        assertEq(win.getAbsenceType(emp, '2027-05-10'), 'vacation', 'первый день');
+        assertEq(win.getAbsenceType(emp, '2027-05-20'), 'vacation', 'последний день');
+        assertEq(win.getAbsenceType(emp, '2027-05-21'), null, 'день после отпуска');
+    });
+    t('Подмена в отпуске отбрасывается при санитаризации', () => {
+        const emp = mkEmp('2_2', 0);
+        emp.absences = [{ type: 'vacation', start: '2027-05-10', end: '2027-05-20' }];
+        emp.subs = [{ date: '2027-05-15' }, { date: '2027-06-01' }];
+        const clean = win.sanitizeEmployee(emp);
+        assertEq(clean.subs.length, 1, 'число подмен после очистки');
+        assertEq(clean.subs[0].date, '2027-06-01', 'оставшаяся подмена');
+    });
+
+    // === 5. Покрытие смен ===
+    t('Покрытие: отпуск закрывает смены и создаёт дефицит', () => {
+        const snapshot = win.employees;
+        try {
+            win.employees = [0, 1, 2, 3].map(off => {
+                const e = mkEmp('2_2', off);
+                e.id = off + 1;
+                e.name = 'Сотрудник ' + (off + 1);
+                return e;
+            });
+            // Полный состав: всегда ровно 2 работающих — дефицитов нет
+            let cov = win.computeCoverage(2027, 4, 31);
+            assertTrue(cov.every(c => !c.dayGap), 'без отпуска дефицитов нет');
+            assertTrue(cov.every(c => c.dayWorkers === 2), 'всегда 2 дневных');
+            // Уводим одного в отпуск на весь май: в его рабочие дни остаётся 1 (норма), но в "сольные" дни — 0
+            win.employees[0].absences = [{ type: 'vacation', start: '2027-05-01', end: '2027-05-31' }];
+            cov = win.computeCoverage(2027, 4, 31);
+            const gapsNoSub = cov.filter(c => c.dayGap).length;
+            assertTrue(gapsNoSub > 0, 'появились дни с дефицитом');
+            // Назначаем подмены на все дефицитные дни — дефицит закрывается
+            cov.filter(c => c.dayGap).forEach(c => win.employees[1].subs.push({ date: c.dateStr }));
+            cov = win.computeCoverage(2027, 4, 31);
+            assertTrue(cov.every(c => !c.dayGap), 'подмены закрыли все дефициты');
+        } finally {
+            win.employees = snapshot;
+        }
+    });
+
+    // === 6. Кросс-проверка 1 января 2026 (якорь) ===
+    t('Якорь: 01.01.2026 — старт циклов', () => {
+        assertEq(win.getBaseStatus(mkEmp('2_2', 0), d(2026, 1, 1)), 'work', '2/2 off=0');
+        assertEq(win.getBaseStatus(mkEmp('DDNN3', 0), d(2026, 1, 1)), 'work', 'DDNN3 off=0');
+        assertEq(win.getBaseStatus(mkEmp('DDNN3', 0), d(2026, 1, 4)), 'night', 'DDNN3 off=0, 4-е');
+    });
+
+    renderResults();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>График смен ОКК | ООО «АвиаКомплекс»</title>
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#003366">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        :root {
+            --primary: #003366;
+            --secondary: #0055a4;
+            --work: #e3f2fd; --work-text: #0d47a1;
+            --night: #1a237e; --night-text: #ffffff;
+            --off: #f5f5f5; --off-text: #666;
+            --vacation: #fff3cd; --vacation-text: #856404;
+            --sick: #f8d7da; --sick-text: #721c24;
+            --timeoff: #d1ecf1; --timeoff-text: #0c5460;
+            --study: #e2e3f5; --study-text: #383d75;
+            --sub: #28a745; --sub-text: #ffffff;
+            --gap: #f8d7da; --gap-text: #721c24;
+            --gap-night: #4a0000; --gap-night-text: #ffffff;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #f8f9fa; color: #333; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-wrap: wrap; gap: 10px; }
+        .header h1 { margin: 0; font-size: 1.4rem; color: var(--primary); }
+        .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        button { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--secondary); }
+        .btn-danger { background: #dc3545; color: white; }
+        .btn-sm { padding: 4px 8px; font-size: 0.8rem; }
+        .btn-outline { background: white; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-success { background: #28a745; color: white; }
+        .btn-icon { padding: 2px 6px; font-size: 0.75rem; background: transparent; border: 1px solid var(--primary); color: var(--primary); }
+        .btn-icon:hover { background: var(--primary); color: white; }
+
+        .dashboard { display: grid; grid-template-columns: 280px 1fr; gap: 20px; margin-bottom: 20px; }
+        .panel { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .panel h3 { margin-top: 0; color: var(--primary); border-bottom: 2px solid #eee; padding-bottom: 8px; font-size: 1.1rem; }
+
+        .legend { display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; margin-bottom: 15px; }
+        .legend-item { display: flex; align-items: center; gap: 8px; }
+        .box { width: 30px; height: 25px; border-radius: 4px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold; }
+
+        .calendar-container { overflow-x: auto; background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; min-width: 900px; }
+        th, td { border: 1px solid #dee2e6; padding: 6px; text-align: center; font-size: 0.85rem; }
+        th { background: var(--primary); color: white; position: sticky; top: 0; z-index: 10; }
+        th.name-col { min-width: 220px; text-align: left; padding-left: 10px; position: sticky; left: 0; z-index: 20; background: var(--primary); }
+
+        .cell-work { background: var(--work); color: var(--work-text); font-weight: bold; }
+        .cell-night { background: var(--night); color: var(--night-text); font-weight: bold; }
+        .cell-off { background: var(--off); color: var(--off-text); }
+        .cell-vacation { background: var(--vacation); color: var(--vacation-text); font-weight: bold; }
+        .cell-sick { background: var(--sick); color: var(--sick-text); font-weight: bold; }
+        .cell-timeoff { background: var(--timeoff); color: var(--timeoff-text); font-weight: bold; }
+        .cell-study { background: var(--study); color: var(--study-text); font-weight: bold; }
+        .cell-sub {
+            background: var(--sub);
+            color: var(--sub-text);
+            font-weight: bold;
+            font-size: 1.1rem;
+            border: 2px solid #1e7e34;
+            box-shadow: 0 0 8px rgba(40, 167, 69, 0.6);
+            animation: pulse-sub 2s infinite;
+        }
+        .cell-gap { background: var(--gap); color: var(--gap-text); font-weight: bold; animation: pulse 2s infinite; }
+        .cell-gap-night { background: var(--gap-night); color: var(--gap-night-text); font-weight: bold; animation: pulse 2s infinite; }
+        .cell-holiday { background: #ffe6e6; color: #cc0000; font-weight: bold; }
+
+        /* === ИНДИКАТОРЫ ДЕФИЦИТА СМЕН (жёлтая/красная полоса сверху колонки) === */
+        th.col-gap-day { box-shadow: inset 0 -3px 0 #ffc107; }
+        th.col-gap-night { box-shadow: inset 0 -3px 0 #dc3545; }
+        th.col-gap-both { box-shadow: inset 0 -3px 0 #dc3545, inset 0 -6px 0 #ffc107; }
+        td.col-gap-day { box-shadow: inset 0 3px 0 #ffc107; }
+        td.col-gap-night { box-shadow: inset 0 3px 0 #dc3545; }
+        td.col-gap-both { box-shadow: inset 0 3px 0 #dc3545, inset 0 6px 0 #ffc107; }
+
+        /* === ПОДСВЕТКА ТЕКУЩЕГО ДНЯ === */
+        th.today { background: var(--secondary); color: #fff; }
+        td.today-col { border-left: 2px solid var(--secondary); border-right: 2px solid var(--secondary); }
+
+        /* === СТРОКА ИТОГОВ === */
+        tr.totals-row td { background: #e9ecef; font-weight: bold; font-size: 0.8rem; padding: 6px 4px; white-space: nowrap; }
+        tr.totals-row td.totals-label { text-align: left; padding-left: 10px; color: var(--primary); position: sticky; left: 0; background: #e9ecef; z-index: 5; }
+        tr.totals-row td.total-gap-day { color: #856404; }
+        tr.totals-row td.total-gap-night { color: #721c24; }
+
+        .group-header-row td {
+            background: #e9ecef;
+            font-weight: bold;
+            color: var(--primary);
+            text-align: left;
+            padding: 8px 10px;
+            font-size: 0.9rem;
+            border-top: 2px solid var(--primary);
+        }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
+        @keyframes pulse-sub {
+            0% { box-shadow: 0 0 8px rgba(40, 167, 69, 0.6); }
+            50% { box-shadow: 0 0 15px rgba(40, 167, 69, 0.9); }
+            100% { box-shadow: 0 0 8px rgba(40, 167, 69, 0.6); }
+        }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 8px; width: 600px; max-width: 95%; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .modal-header h3 { margin: 0; color: var(--primary); }
+        .close-btn { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #666; }
+
+        .form-section { margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 6px; border: 1px solid #e9ecef; }
+        .form-section h4 { margin-top: 0; margin-bottom: 10px; color: var(--secondary); font-size: 1rem; }
+        .form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; font-size: 0.9rem; }
+        .form-group input, .form-group select { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+
+        .day-header { font-size: 0.75rem; }
+        .day-header.weekend { color: #ff6b6b; }
+        .day-header.holiday { color: #cc0000; font-weight: bold; }
+
+        .coverage-card {
+            padding: 10px 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            border-left: 4px solid;
+            font-size: 0.85rem;
+        }
+        .coverage-card.day-gap {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+            color: #856404;
+        }
+        .coverage-card.night-gap {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .coverage-card .card-header {
+            font-weight: bold;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .coverage-card .candidates {
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px dashed rgba(0,0,0,0.15);
+            font-size: 0.8rem;
+        }
+        .coverage-card .candidate-name {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 3px 0;
+            padding-left: 12px;
+        }
+        .coverage-card .candidate-name button { font-size: 0.7rem; padding: 2px 8px; }
+        .coverage-card .no-candidates {
+            color: #dc3545;
+            font-weight: bold;
+            font-style: italic;
+        }
+        .coverage-success {
+            background: #d4edda;
+            color: #155724;
+            padding: 12px;
+            border-radius: 6px;
+            border-left: 4px solid #28a745;
+            font-weight: bold;
+        }
+        .summary-list {
+            margin-top: 12px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+        .summary-list strong {
+            display: block;
+            margin-bottom: 4px;
+            color: var(--primary);
+        }
+        .summary-list .day-tag {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin: 2px;
+            font-size: 0.75rem;
+        }
+        .summary-list .day-tag.night {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        /* === КОМПАКТНЫЙ РЕЖИМ === */
+        .compact-mode table {
+            table-layout: fixed;
+        }
+        .compact-mode th,
+        .compact-mode td {
+            padding: 3px 4px;
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+        .compact-mode th.name-col {
+            min-width: 180px;
+            width: 180px;
+            padding: 4px 6px;
+        }
+        .compact-mode th.day-col {
+            width: 28px;
+            min-width: 28px;
+            max-width: 28px;
+        }
+        .compact-mode th.actions-col {
+            width: 0;
+            min-width: 0;
+            padding: 0;
+            border: none;
+        }
+        .compact-mode .day-header {
+            font-size: 0.7rem;
+        }
+        .compact-mode .employee-cell {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+            font-size: 0.7rem;
+            line-height: 1.2;
+        }
+        .compact-mode .employee-info {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .compact-mode .group-header-row td {
+            padding: 4px 10px;
+            font-size: 0.8rem;
+        }
+        .compact-mode .cell-sub {
+            font-size: 0.85rem;
+        }
+        .compact-mode tr.totals-row td { font-size: 0.65rem; }
+
+        /* Стандартный режим (без compact-mode) */
+        .employee-cell {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 4px;
+        }
+        .employee-info {
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Скрытый текст для скринридеров */
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+            clip: rect(0 0 0 0);
+            white-space: nowrap;
+        }
+
+        /* === СИНХРОНИЗАЦИЯ И РЕЖИМЫ === */
+        .sync-status { font-size: 0.8rem; color: #666; padding: 4px 12px; background: #e9ecef; border-radius: 12px; white-space: nowrap; }
+        .sync-status.ok { background: #d4edda; color: #155724; }
+        .sync-status.err { background: #f8d7da; color: #721c24; }
+        .offline-banner { margin: 0 0 15px; padding: 10px 15px; background: #fff3cd; color: #856404; border-left: 4px solid #ffc107; border-radius: 6px; font-size: 0.9rem; }
+        /* В режиме просмотра все элементы редактирования скрыты */
+        body:not(.edit-mode) .edit-only { display: none !important; }
+
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div>
+        <h1>График смен ОКК | ООО «АвиаКомплекс»</h1>
+    </div>
+    <div class="controls">
+        <button class="btn-primary" onclick="changeMonth(-1)">◀ Пред. месяц</button>
+        <span id="currentMonthDisplay" style="font-weight: bold; font-size: 1.1rem; min-width: 150px; text-align: center;"></span>
+        <button class="btn-primary" onclick="changeMonth(1)">След. месяц ▶</button>
+        <button class="btn-outline edit-only" onclick="openAddModal()">+ Сотрудник</button>
+        <button class="btn-success" onclick="exportPDF()">📄 Сохранить PDF</button>
+        <button class="btn-outline" onclick="exportData()">💾 Экспорт JSON</button>
+        <input type="file" id="importFile" style="display:none" onchange="importData(this)">
+        <button class="btn-outline edit-only" onclick="document.getElementById('importFile').click()"> Импорт JSON</button>
+        <button class="btn-outline" id="compactToggle" onclick="toggleCompactMode()"> Режим: компактный</button>
+        <button class="btn-outline" onclick="openSettings()" title="Настройки облачной синхронизации">⚙️ Настройки</button>
+        <button class="btn-outline" id="editToggle" onclick="toggleEditMode()">🔐 Редактирование</button>
+        <span id="syncStatus" class="sync-status">☁️ Облако не подключено</span>
+    </div>
+</div>
+
+<div id="offlineBanner" class="offline-banner" style="display:none;"></div>
+
+<div class="dashboard">
+    <div class="panel">
+        <h3>Легенда</h3>
+        <div class="legend">
+            <div class="legend-item"><div class="box" style="background:var(--work); color:var(--work-text)">Д</div> Дневная смена</div>
+            <div class="legend-item"><div class="box" style="background:var(--night); color:var(--night-text)">Н</div> Ночная смена</div>
+            <div class="legend-item"><div class="box" style="background:var(--off); color:var(--off-text)">В</div> Выходной</div>
+            <div class="legend-item"><div class="box" style="background:var(--vacation); color:var(--vacation-text)">О</div> Отпуск</div>
+            <div class="legend-item"><div class="box" style="background:var(--sick); color:var(--sick-text)">Б</div> Больничный</div>
+            <div class="legend-item"><div class="box" style="background:var(--timeoff); color:var(--timeoff-text)">ДО</div> Отгул</div>
+            <div class="legend-item"><div class="box" style="background:var(--study); color:var(--study-text)">У</div> Учеба</div>
+            <div class="legend-item"><div class="box" style="background:var(--sub); color:var(--sub-text); border: 2px solid #1e7e34;">П</div> Подмена</div>
+            <div class="legend-item"><div class="box" style="background:#ffe6e6; color:#cc0000">ПР</div> Праздник</div>
+            <div class="legend-item"><div class="box" style="box-shadow: inset 0 3px 0 #ffc107;">▲</div> Дефицит дневной смены</div>
+            <div class="legend-item"><div class="box" style="box-shadow: inset 0 3px 0 #dc3545;">▲</div> Дефицит ночной смены</div>
+            <div class="legend-item"><div class="box" style="border-left: 2px solid var(--secondary); border-right: 2px solid var(--secondary); color: var(--secondary);">│</div> Текущий день</div>
+        </div>
+        <h4>Анализ покрытия смен</h4>
+        <div id="combinedCoverage"></div>
+    </div>
+
+    <div class="calendar-container" id="calendarContent">
+        <table id="scheduleTable">
+            <caption class="visually-hidden">График смен отдела контроля качества по сотрудникам и дням месяца</caption>
+            <thead id="tableHead"></thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Модальное окно добавления сотрудника -->
+<div id="addModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Добавить сотрудника</h3>
+            <button class="close-btn" onclick="closeModal('addModal')" aria-label="Закрыть окно">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>ФИО</label>
+            <input type="text" id="newEmpName" placeholder="Иванов Иван Иванович">
+        </div>
+        <div class="form-group">
+            <label>Табельный номер</label>
+            <input type="text" id="newEmpNumber" placeholder="00000">
+        </div>
+        <div class="form-group">
+            <label>Группа</label>
+            <select id="newEmpGroup">
+                <option value="руководство">Руководство</option>
+                <option value="окк ангар">ОКК Ангар</option>
+                <option value="окк перрон">ОКК Перрон</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Должность</label>
+            <select id="newEmpRole">
+                <option value="Начальник отдела">Начальник отдела</option>
+                <option value="Зам. начальника отдела">Зам. начальника отдела</option>
+                <option value="Ведущий инженер">Ведущий инженер</option>
+                <option value="Инженер">Инженер</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Тип графика</label>
+            <select id="newEmpShift">
+                <option value="5_2">5/2 (Пн-Пт, дневная)</option>
+                <option value="2_2">2/2 (Д-Д-В-В)</option>
+                <option value="DDNN3">Д-Д-В-Н-Н-3В (8-дневный цикл)</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Смещение графика (для 2/2 и Д-Д-В-Н-Н-3В)</label>
+            <select id="newEmpOffset">
+                <option value="0">0 (Старт с рабочего дня)</option>
+                <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+                <option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option>
+            </select>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <button onclick="closeModal('addModal')" style="background: #ccc;">Отмена</button>
+            <button class="btn-primary" onclick="addEmployee()">Добавить</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно редактирования сотрудника -->
+<div id="editModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3 id="editModalTitle">Редактирование графика</h3>
+            <button class="close-btn" onclick="closeModal('editModal')" aria-label="Закрыть окно">&times;</button>
+        </div>
+        <input type="hidden" id="editEmpId">
+
+        <div class="form-section">
+            <h4>Основные настройки</h4>
+            <div class="form-row">
+                <div style="flex: 2; min-width: 200px;">
+                    <label>ФИО</label>
+                    <input type="text" id="editName">
+                </div>
+                <div style="flex: 1; min-width: 100px;">
+                    <label>Таб. номер</label>
+                    <input type="text" id="editNumber">
+                </div>
+            </div>
+            <div class="form-row">
+                <div style="flex: 1; min-width: 150px;">
+                    <label>Группа</label>
+                    <select id="editGroup">
+                        <option value="руководство">Руководство</option>
+                        <option value="окк ангар">ОКК Ангар</option>
+                        <option value="окк перрон">ОКК Перрон</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label>Должность</label>
+                    <select id="editRole">
+                        <option value="Начальник отдела">Начальник отдела</option>
+                        <option value="Зам. начальника отдела">Зам. начальника отдела</option>
+                        <option value="Ведущий инженер">Ведущий инженер</option>
+                        <option value="Инженер">Инженер</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 150px;">
+                    <label>Тип графика</label>
+                    <select id="editShift">
+                        <option value="5_2">5/2 (Пн-Пт)</option>
+                        <option value="2_2">2/2 (Д-Д-В-В)</option>
+                        <option value="DDNN3">Д-Д-В-Н-Н-3В</option>
+                    </select>
+                </div>
+                <div style="flex: 1; min-width: 100px;">
+                    <label>Смещение</label>
+                    <select id="editOffset">
+                        <option value="0">0</option><option value="1">1</option><option value="2">2</option>
+                        <option value="3">3</option><option value="4">4</option><option value="5">5</option>
+                        <option value="6">6</option><option value="7">7</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h4>Периоды отсутствия</h4>
+            <div id="absenceList"></div>
+            <button type="button" class="btn-sm btn-primary" onclick="addAbsenceRow()" style="margin-top: 10px;">+ Добавить период</button>
+        </div>
+
+        <div class="form-section">
+            <h4>Дни подмен (работа в выходной)</h4>
+            <div id="subList"></div>
+            <button type="button" class="btn-sm btn-primary" onclick="addSubRow()" style="margin-top: 10px;">+ Добавить день подмены</button>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; margin-top: 20px; flex-wrap: wrap; gap: 10px;">
+            <button class="btn-danger" onclick="deleteCurrentEmployee()">Удалить сотрудника</button>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeModal('editModal')" style="background: #ccc;">Отмена</button>
+                <button class="btn-primary" onclick="saveEmployeeData()">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно настроек облака -->
+<div id="settingsModal" class="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Настройки облачной синхронизации</h3>
+            <button class="close-btn" onclick="closeModal('settingsModal')" aria-label="Закрыть окно">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>GitHub токен (Personal access token, права: gist)</label>
+            <input type="password" id="setToken" placeholder="ghp_...">
+        </div>
+        <div class="form-group">
+            <label>Gist ID (оставьте пустым — gist будет создан автоматически)</label>
+            <input type="text" id="setGistId" placeholder="a1b2c3d4e5f6...">
+        </div>
+        <div class="form-group">
+            <label>Пароль редактирования (введите, чтобы установить или сменить)</label>
+            <input type="password" id="setEditPass" placeholder="оставьте пустым, чтобы не менять">
+        </div>
+        <div id="settingsMsg" style="font-size:0.85rem; margin-bottom:10px;"></div>
+        <div style="display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+            <button class="btn-danger" onclick="disconnectCloud()">Отключить облако</button>
+            <div style="display:flex; gap:10px;">
+                <button onclick="closeModal('settingsModal')" style="background:#ccc;">Отмена</button>
+                <button class="btn-primary" onclick="saveSettings()">Сохранить и проверить</button>
+            </div>
+        </div>
+        <div style="margin-top:12px; padding:10px; background:#f8f9fa; border-radius:6px; font-size:0.8rem; color:#666;">
+            <strong>Шаг для просмотра с других компьютеров:</strong> после подключения нажмите «Скачать cloud-config.json»
+            и загрузите этот файл в корень репозитория на GitHub — тогда остальным не потребуется ничего настраивать.
+            <br><button class="btn-sm btn-outline" onclick="downloadCloudConfig()" style="margin-top:6px;">Скачать cloud-config.json</button>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно входа для редактирования -->
+<div id="loginModal" class="modal">
+    <div class="modal-content" style="width:360px;">
+        <div class="modal-header">
+            <h3>Вход для редактирования</h3>
+            <button class="close-btn" onclick="closeModal('loginModal')" aria-label="Закрыть окно">&times;</button>
+        </div>
+        <div class="form-group">
+            <label>Пароль редактирования</label>
+            <input type="password" id="loginPass" onkeydown="if(event.key==='Enter')doLogin()">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button onclick="closeModal('loginModal')" style="background:#ccc;">Отмена</button>
+            <button class="btn-primary" onclick="doLogin()">Войти</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// === ИСХОДНЫЕ ДАННЫЕ ===
+const ANCHOR_DATE = new Date(2026, 0, 1).getTime();
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
+const DATA_VERSION = 1; // Версия схемы данных (для миграций при будущих изменениях)
+const DEFAULT_GROUP = 'окк ангар';
+
+// === ПРОИЗВОДСТВЕННЫЕ КАЛЕНДАРИ ===
+const MONTH_NAMES = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'
+];
+
+const MONTH_NAMES_NOM = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
+// Производственный календарь на 2026 год
+const HOLIDAYS_2026 = {
+    '2026-01-01': 'Новый год', '2026-01-02': 'Новый год', '2026-01-03': 'Новый год',
+    '2026-01-04': 'Новый год', '2026-01-05': 'Новый год', '2026-01-06': 'Новый год',
+    '2026-01-07': 'Рождество Христово', '2026-01-08': 'Новый год',
+    '2026-02-23': 'День защитника Отечества',
+    '2026-03-08': 'Международный женский день', '2026-03-09': 'Выходной (перенос)',
+    '2026-05-01': 'Праздник Весны и Труда',
+    '2026-05-09': 'День Победы', '2026-05-11': 'Выходной (перенос)',
+    '2026-06-12': 'День России',
+    '2026-11-04': 'День народного единства'
+};
+
+// Производственный календарь на 2027 год (согласно Постановлению Правительства РФ № 1187 от 17.09.2026)
+const HOLIDAYS_2027 = {
+    // Новогодние каникулы
+    '2027-01-01': 'Новый год', '2027-01-02': 'Новый год', '2027-01-03': 'Новый год',
+    '2027-01-04': 'Новый год', '2027-01-05': 'Новый год', '2027-01-06': 'Новый год',
+    '2027-01-07': 'Рождество Христово', '2027-01-08': 'Новый год',
+    '2027-01-09': 'Новогодние каникулы (перенос)',
+    '2027-01-10': 'Новогодние каникулы (перенос)',
+
+    // День защитника Отечества
+    '2027-02-21': 'День защитника Отечества (перенос)',
+    '2027-02-23': 'День защитника Отечества',
+
+    // Международный женский день
+    '2027-03-06': '8 Марта (перенос)',
+    '2027-03-07': '8 Марта (перенос)',
+    '2027-03-08': 'Международный женский день',
+
+    // Праздник Весны и Труда
+    '2027-05-01': 'Праздник Весны и Труда',
+    '2027-05-02': '1 Мая (перенос)',
+    '2027-05-03': '1 Мая (перенос)',
+
+    // День Победы
+    '2027-05-08': '9 Мая (перенос)',
+    '2027-05-09': 'День Победы',
+    '2027-05-10': '9 Мая (перенос)',
+
+    // День России
+    '2027-06-12': 'День России',
+    '2027-06-13': 'День России (перенос)',
+    '2027-06-14': 'День России (перенос)',
+
+    // День народного единства
+    '2027-11-04': 'День народного единства',
+    '2027-11-06': '4 ноября (перенос)',
+    '2027-11-07': '4 ноября (перенос)'
+};
+
+// Словарь праздничных дней по годам
+const HOLIDAYS_BY_YEAR = {
+    2026: HOLIDAYS_2026,
+    2027: HOLIDAYS_2027
+};
+
+// Рабочие дни, которые обычно являются выходными (переносы) — по годам
+const WORKING_DAYS_BY_YEAR = {
+    2027: {
+        '2027-02-20': 'Рабочий день (перенос с 22 февраля)'
+    }
+};
+
+// Дополнительные выходные дни (переносы) — по годам
+const EXTRA_HOLIDAYS_BY_YEAR = {
+    2027: {
+        '2027-02-22': 'Выходной (перенос с 20 февраля)',
+        '2027-11-05': 'Выходной (перенос с 2 января)',
+        '2027-12-31': 'Выходной (перенос с 3 января)'
+    }
+};
+
+// Фиксированные праздники РФ (для любых лет, если нет конкретного календаря)
+const RUSSIAN_HOLIDAYS = {
+    '01-01': 'Новый год', '01-02': 'Новый год', '01-03': 'Новый год',
+    '01-04': 'Новый год', '01-05': 'Новый год', '01-06': 'Новый год',
+    '01-07': 'Рождество', '01-08': 'Новый год',
+    '02-23': 'День защитника Отечества',
+    '03-08': 'Международный женский день',
+    '05-01': 'Праздник Весны и Труда',
+    '05-09': 'День Победы',
+    '06-12': 'День России',
+    '11-04': 'День народного единства'
+};
+
+let currentDate = new Date(2026, 5, 1);
+let isCompactMode = true; // По умолчанию компактный режим
+
+let employees = [
+    { id: 1, name: "Щербаков Сергей Александрович", number: "00135", role: "Начальник отдела", group: "руководство", shift: "5_2", offset: 0, absences: [], subs: [] },
+    { id: 11, name: "Титов Евгений Владимирович", number: "00990", role: "Зам. начальника отдела", group: "руководство", shift: "5_2", offset: 0, absences: [], subs: [] },
+    { id: 2, name: "Грибанов Владимир Сергеевич", number: "00553", role: "Инженер", group: "окк ангар", shift: "2_2", offset: 0, absences: [], subs: [] },
+    { id: 3, name: "Коробов Дмитрий Васильевич", number: "00838", role: "Инженер", group: "окк ангар", shift: "2_2", offset: 2, absences: [], subs: [] },
+    { id: 12, name: "Нурмухаметов Антон Ильич", number: "00988", role: "Инженер", group: "окк ангар", shift: "2_2", offset: 4, absences: [], subs: [] },
+    { id: 5, name: "Попов Никита Андреевич", number: "00791", role: "Инженер", group: "окк ангар", shift: "2_2", offset: 1, absences: [], subs: [] },
+    { id: 8, name: "Гуржий Евгений Александрович", number: "00213", role: "Ведущий инженер", group: "окк перрон", shift: "2_2", offset: 0, absences: [], subs: [] },
+    { id: 9, name: "Марков Михаил Сергеевич", number: "00118", role: "Ведущий инженер", group: "окк перрон", shift: "2_2", offset: 2, absences: [], subs: [] },
+    { id: 10, name: "Семенов Максим Игоревич", number: "00692", role: "Ведущий инженер", group: "окк перрон", shift: "DDNN3", offset: 0, absences: [], subs: [] },
+    { id: 4, name: "Лисицын Сергей Александрович", number: "00731", role: "Инженер", group: "окк перрон", shift: "DDNN3", offset: 2, absences: [], subs: [] },
+    { id: 6, name: "Трифонов Андрей Андреевич", number: "00875", role: "Инженер", group: "окк перрон", shift: "DDNN3", offset: 4, absences: [], subs: [] },
+    { id: 7, name: "Турсин Александр Николаевич", number: "00953", role: "Инженер", group: "окк перрон", shift: "DDNN3", offset: 6, absences: [], subs: [] }
+];
+
+// === УТИЛИТЫ ===
+// Экранирование HTML-спецсимволов (защита от поломки вёрстки и XSS через ФИО/роли)
+function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+// Валидация структуры данных при загрузке/импорте
+function validateScheduleData(data) {
+    if (!data || typeof data !== 'object') return false;
+    if (data.employees !== undefined) {
+        if (!Array.isArray(data.employees)) return false;
+        for (const emp of data.employees) {
+            if (!emp || typeof emp !== 'object') return false;
+            if (typeof emp.id !== 'number' || !Number.isFinite(emp.id)) return false;
+            if (typeof emp.name !== 'string' || !emp.name.trim()) return false;
+        }
+    }
+    if (data.currentDate !== undefined && Number.isNaN(new Date(data.currentDate).getTime())) return false;
+    return true;
+}
+
+// Приведение сотрудника к консистентному виду: убираем подмены, попавшие в периоды отсутствия
+function sanitizeEmployee(emp) {
+    const clean = {
+        ...emp,
+        absences: emp.absences || [],
+        subs: [],
+        group: emp.group || DEFAULT_GROUP
+    };
+    const rawSubs = emp.subs || [];
+    const probe = { absences: clean.absences };
+    clean.subs = rawSubs.filter(s => s && s.date && !getAbsenceType(probe, s.date));
+    if (clean.subs.length !== rawSubs.length) {
+        console.warn(`Сотрудник ${emp.name}: удалено ${rawSubs.length - clean.subs.length} подмен(ы) в периодах отсутствия`);
+    }
+    return clean;
+}
+
+// === СОХРАНЕНИЕ И ЗАГРУЗКА ===
+function saveToLocalStorage() {
+    const data = { version: DATA_VERSION, currentDate: currentDate.toISOString(), employees: employees, isCompactMode: isCompactMode };
+    localStorage.setItem('qcScheduleData', JSON.stringify(data));
+    scheduleCloudPush();
+}
+
+function loadFromLocalStorage() {
+    const savedData = localStorage.getItem('qcScheduleData');
+    if (savedData) {
+        try {
+            const data = JSON.parse(savedData);
+            if (!validateScheduleData(data)) {
+                console.error('Сохранённые данные не прошли валидацию');
+                return false;
+            }
+            currentDate = new Date(data.currentDate);
+            isCompactMode = data.isCompactMode !== undefined ? data.isCompactMode : true;
+            employees = data.employees.map(sanitizeEmployee);
+            return true;
+        } catch (e) {
+            console.error('Ошибка загрузки:', e);
+            return false;
+        }
+    }
+    return false;
+}
+
+function clearAllData() {
+    if (confirm('ВНИМАНИЕ! Все данные будут удалены без возможности восстановления. Продолжить?')) {
+        localStorage.removeItem('qcScheduleData');
+        location.reload();
+    }
+}
+
+// === ОБЛАЧНАЯ СИНХРОНИЗАЦИЯ (GitHub Gist) ===
+const CLOUD_KEY = 'qcCloudConfig';
+const EDIT_HASH_KEY = 'qcEditPassHash';
+const GIST_FILE = 'qc-schedule.json';
+let lastSyncTime = null;
+let pushTimer = null;
+
+function getCloudConfig() { try { return JSON.parse(localStorage.getItem(CLOUD_KEY)); } catch (e) { return null; } }
+function setCloudConfig(cfg) { localStorage.setItem(CLOUD_KEY, JSON.stringify(cfg)); }
+function clearCloudConfig() { localStorage.removeItem(CLOUD_KEY); }
+
+// === РЕЖИМ РЕДАКТИРОВАНИЯ (по паролю, на уровне текущей вкладки) ===
+function isEditMode() { return sessionStorage.getItem('qcEditMode') === '1'; }
+function requireEdit() {
+    if (isEditMode()) return true;
+    alert('Режим просмотра. Для редактирования нажмите «🔐 Редактирование» и войдите по паролю.');
+    return false;
+}
+async function sha256(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function buildPayload() {
+    return {
+        version: DATA_VERSION,
+        currentDate: currentDate.toISOString(),
+        employees: employees,
+        isCompactMode: isCompactMode,
+        updatedAt: new Date().toISOString()
+    };
+}
+
+function updateSyncStatus(state) {
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    el.classList.remove('ok', 'err');
+    if (state === 'ok') {
+        el.classList.add('ok');
+        const time = lastSyncTime ? new Date(lastSyncTime).toLocaleString('ru-RU') : '—';
+        el.textContent = `☁️ Синхронизировано: ${time}${isEditMode() ? ' (редактор)' : ' (просмотр)'}`;
+    } else if (state === 'err') {
+        el.classList.add('err');
+        el.textContent = '⚠️ Ошибка синхронизации';
+    } else if (state === 'loading') {
+        el.textContent = '☁️ Загрузка из облака…';
+    } else {
+        el.textContent = '☁️ Облако не подключено';
+    }
+}
+
+async function fetchGist(gistId, token) {
+    const headers = token
+        ? { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+        : { 'Accept': 'application/vnd.github+json' };
+    const resp = await fetch(`https://api.github.com/gists/${gistId}`, { headers });
+    if (!resp.ok) throw new Error('Gist HTTP ' + resp.status);
+    const gist = await resp.json();
+    const file = gist.files && gist.files[GIST_FILE];
+    if (!file) throw new Error('Файл ' + GIST_FILE + ' не найден в gist');
+    return JSON.parse(file.content);
+}
+
+async function pushToGist(cfg) {
+    const resp = await fetch(`https://api.github.com/gists/${cfg.gistId}`, {
+        method: 'PATCH',
+        headers: { 'Authorization': 'Bearer ' + cfg.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(buildPayload(), null, 2) } } })
+    });
+    if (!resp.ok) throw new Error('Push HTTP ' + resp.status);
+    return resp.json();
+}
+
+async function createGist(token) {
+    const resp = await fetch('https://api.github.com/gists', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            description: 'График смен ОКК (данные приложения)',
+            public: true,
+            files: { [GIST_FILE]: { content: JSON.stringify(buildPayload(), null, 2) } }
+        })
+    });
+    if (!resp.ok) throw new Error('Создание gist: HTTP ' + resp.status);
+    const gist = await resp.json();
+    return gist.id;
+}
+
+// Автоматическая отправка изменений в облако (с задержкой, только в режиме редактирования)
+function scheduleCloudPush() {
+    const cfg = getCloudConfig();
+    if (!cfg || !cfg.token || !isEditMode()) return;
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(cloudPush, 1500);
+}
+
+async function cloudPush() {
+    const cfg = getCloudConfig();
+    if (!cfg || !cfg.token) return;
+    try {
+        await pushToGist(cfg);
+        lastSyncTime = Date.now();
+        localStorage.setItem('qcLastSync', String(lastSyncTime));
+        updateSyncStatus('ok');
+        document.getElementById('offlineBanner').style.display = 'none';
+    } catch (e) {
+        console.error('Push failed:', e);
+        updateSyncStatus('err');
+        showOfflineBanner('Изменения не сохранены в облако (нет интернета?). Они хранятся локально на этом компьютере.');
+    }
+}
+
+function showOfflineBanner(msg) {
+    const el = document.getElementById('offlineBanner');
+    el.textContent = msg || 'Нет связи с облаком — показана локальная копия.';
+    el.style.display = 'block';
+}
+
+function applyCloudData(data) {
+    if (!validateScheduleData(data)) throw new Error('Данные в облаке повреждены');
+    currentDate = new Date(data.currentDate);
+    employees = data.employees.map(sanitizeEmployee);
+    // isCompactMode и режим редактирования — локальные настройки устройства, их не перезаписываем
+    lastSyncTime = Date.now();
+    localStorage.setItem('qcLastSync', String(lastSyncTime));
+}
+
+async function initCloud() {
+    const cfg = getCloudConfig();
+    let active = (cfg && cfg.token && cfg.gistId) ? cfg : null;
+    if (!active) {
+        // Устройство просмотра без настройки: gist ID берём из файла cloud-config.json в репозитории
+        try {
+            const r = await fetch('cloud-config.json', { cache: 'no-store' });
+            if (r.ok) {
+                const j = await r.json();
+                if (j && j.gistId) active = { gistId: j.gistId };
+            }
+        } catch (e) { /* файла нет — облако не настроено */ }
+    }
+    if (!active || !active.gistId) { updateSyncStatus('none'); return; }
+    updateSyncStatus('loading');
+    try {
+        const data = await fetchGist(active.gistId, active.token);
+        applyCloudData(data);
+        render();
+        document.getElementById('offlineBanner').style.display = 'none';
+        updateSyncStatus('ok');
+    } catch (e) {
+        console.error('Cloud load failed:', e);
+        updateSyncStatus('err');
+        const last = localStorage.getItem('qcLastSync');
+        const when = last ? new Date(Number(last)).toLocaleString('ru-RU') : 'неизвестно';
+        showOfflineBanner(`Нет связи с облаком — показана локальная копия (синхронизирована ${when}).`);
+        render();
+    }
+}
+
+// === НАСТРОЙКИ ОБЛАКА ===
+function openSettings() {
+    const cfg = getCloudConfig() || {};
+    document.getElementById('setToken').value = cfg.token || '';
+    document.getElementById('setGistId').value = cfg.gistId || '';
+    document.getElementById('setEditPass').value = '';
+    document.getElementById('settingsMsg').textContent = '';
+    document.getElementById('settingsModal').style.display = 'flex';
+}
+
+async function saveSettings() {
+    const msg = document.getElementById('settingsMsg');
+    msg.style.color = '#856404';
+    msg.textContent = 'Проверяю подключение…';
+    const token = document.getElementById('setToken').value.trim();
+    const gistId = document.getElementById('setGistId').value.trim();
+    const newPass = document.getElementById('setEditPass').value;
+    if (token) {
+        try {
+            const check = await fetch('https://api.github.com/user', {
+                headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' }
+            });
+            if (!check.ok) throw new Error('токен не принят GitHub (HTTP ' + check.status + ')');
+            let finalGistId = gistId;
+            if (!finalGistId) {
+                msg.textContent = 'Создаю gist…';
+                finalGistId = await createGist(token);
+            } else {
+                await fetchGist(finalGistId, token); // проверяем доступность
+            }
+            setCloudConfig({ token, gistId: finalGistId });
+            document.getElementById('setGistId').value = finalGistId;
+            msg.style.color = '#155724';
+            msg.textContent = '✅ Подключено. Теперь скачайте cloud-config.json (ниже) и загрузите его в репозиторий — для просмотра с других компьютеров.';
+            updateSyncStatus('ok');
+        } catch (e) {
+            msg.style.color = '#721c24';
+            msg.textContent = '❌ Ошибка: ' + e.message;
+            return;
+        }
+    }
+    if (newPass) {
+        localStorage.setItem(EDIT_HASH_KEY, await sha256(newPass));
+        msg.textContent += ' Пароль редактирования сохранён.';
+    }
+}
+
+function disconnectCloud() {
+    if (confirm('Отключить облачную синхронизацию на этом устройстве? Данные останутся локально.')) {
+        clearTimeout(pushTimer);
+        clearCloudConfig();
+        updateSyncStatus('none');
+        document.getElementById('offlineBanner').style.display = 'none';
+        closeModal('settingsModal');
+    }
+}
+
+function downloadCloudConfig() {
+    const cfg = getCloudConfig();
+    if (!cfg || !cfg.gistId) { alert('Сначала подключите облако (сохраните настройки).'); return; }
+    const blob = new Blob([JSON.stringify({ gistId: cfg.gistId }, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cloud-config.json';
+    a.click();
+}
+
+// === ВХОД / ВЫХОД ИЗ РЕЖИМА РЕДАКТИРОВАНИЯ ===
+function toggleEditMode() {
+    if (isEditMode()) {
+        sessionStorage.removeItem('qcEditMode');
+        applyEditMode();
+        render();
+    } else {
+        if (!localStorage.getItem(EDIT_HASH_KEY)) {
+            alert('Пароль редактирования ещё не задан. Откройте ⚙️ Настройки и задайте пароль.');
+            return;
+        }
+        document.getElementById('loginPass').value = '';
+        document.getElementById('loginModal').style.display = 'flex';
+    }
+}
+
+async function doLogin() {
+    const pass = document.getElementById('loginPass').value;
+    const hash = await sha256(pass);
+    if (hash === localStorage.getItem(EDIT_HASH_KEY)) {
+        sessionStorage.setItem('qcEditMode', '1');
+        closeModal('loginModal');
+        applyEditMode();
+        render();
+    } else {
+        alert('Неверный пароль.');
+    }
+}
+
+function applyEditMode() {
+    document.body.classList.toggle('edit-mode', isEditMode());
+    document.getElementById('editToggle').textContent = isEditMode() ? '🚪 Выйти из редактирования' : '🔐 Редактирование';
+    updateSyncStatus(lastSyncTime ? 'ok' : ((getCloudConfig() && getCloudConfig().token) ? 'err' : 'none'));
+}
+
+// === ПЕРЕКЛЮЧАТЕЛЬ КОМПАКТНОГО РЕЖИМА ===
+function toggleCompactMode() {
+    isCompactMode = !isCompactMode;
+    applyCompactMode();
+    saveToLocalStorage();
+}
+
+function applyCompactMode() {
+    const container = document.getElementById('calendarContent');
+    const toggleBtn = document.getElementById('compactToggle');
+    if (isCompactMode) {
+        container.classList.add('compact-mode');
+        toggleBtn.textContent = ' Режим: компактный';
+    } else {
+        container.classList.remove('compact-mode');
+        toggleBtn.textContent = ' Режим: стандартный';
+    }
+}
+
+// === ЛОГИКА РАСЧЕТА ГРАФИКА ===
+function isHoliday(date) {
+    const dateStr = formatDate(date);
+    const year = date.getFullYear();
+
+    // Сначала ищем в календаре конкретного года
+    if (HOLIDAYS_BY_YEAR[year] && HOLIDAYS_BY_YEAR[year][dateStr]) {
+        return HOLIDAYS_BY_YEAR[year][dateStr];
+    }
+
+    // Если календаря на этот год нет — используем фиксированные праздники
+    const monthDay = dateStr.substring(5);
+    if (RUSSIAN_HOLIDAYS[monthDay]) {
+        return RUSSIAN_HOLIDAYS[monthDay];
+    }
+
+    return null;
+}
+
+function getBaseStatus(emp, date) {
+    const dateStr = formatDate(date);
+    const year = date.getFullYear();
+    const holiday = isHoliday(date);
+
+    // Проверка на дополнительный рабочий день (перенос) — по годам
+    const yearWorkingDays = WORKING_DAYS_BY_YEAR[year];
+    if (yearWorkingDays && yearWorkingDays[dateStr] && emp.shift === '5_2') {
+        return 'work';
+    }
+
+    // Проверка на дополнительный выходной (перенос) — по годам
+    const yearExtraHolidays = EXTRA_HOLIDAYS_BY_YEAR[year];
+    if (yearExtraHolidays && yearExtraHolidays[dateStr] && emp.shift === '5_2') {
+        return 'holiday';
+    }
+
+    if (holiday && emp.shift === '5_2') return 'holiday';
+
+    const daysSinceAnchor = Math.floor((date.getTime() - ANCHOR_DATE) / MS_PER_DAY);
+
+    if (emp.shift === '5_2') {
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) return 'off';
+        return 'work';
+    }
+    else if (emp.shift === '2_2') {
+        const cyclePos = ((daysSinceAnchor - emp.offset) % 4 + 4) % 4;
+        if (cyclePos === 0 || cyclePos === 1) return 'work';
+        return 'off';
+    }
+    else if (emp.shift === 'DDNN3') {
+        const cyclePos = ((daysSinceAnchor - emp.offset) % 8 + 8) % 8;
+        if (cyclePos === 0 || cyclePos === 1) return 'work';
+        if (cyclePos === 2) return 'off';
+        if (cyclePos === 3 || cyclePos === 4) return 'night';
+        return 'off';
+    }
+    return 'off';
+}
+
+function getAbsenceType(emp, dateStr) {
+    for (let abs of emp.absences) {
+        if (dateStr >= abs.start && dateStr <= abs.end) return abs.type;
+    }
+    return null;
+}
+
+function isSub(emp, dateStr) {
+    return emp.subs.some(s => s.date === dateStr);
+}
+
+function getShiftStatus(emp, date) {
+    const dateStr = formatDate(date);
+    if (isSub(emp, dateStr)) return 'sub';
+    const absence = getAbsenceType(emp, dateStr);
+    if (absence) return absence;
+    return getBaseStatus(emp, date);
+}
+
+function formatDate(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+// === РАСЧЁТ ПОКРЫТИЯ СМЕН (один проход — используется и для таблицы, и для панели) ===
+function computeCoverage(year, month, daysInMonth) {
+    // Исключаем руководство из расчёта
+    const workingEmployees = employees.filter(emp => emp.group !== 'руководство');
+    const hasNightShiftEmployees = workingEmployees.some(emp => emp.shift === 'DDNN3');
+    const days = [];
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, month, d);
+        const dateStr = formatDate(date);
+
+        // Дата следующего дня для проверки правила отдыха
+        const nextDate = new Date(year, month, d + 1);
+
+        let dayWorkers = 0;
+        let nightWorkers = 0;
+        const availableDaySubs = [];
+        const availableNightSubs = [];
+
+        workingEmployees.forEach(emp => {
+            const baseStatus = getBaseStatus(emp, date);
+            const nextBaseStatus = getBaseStatus(emp, nextDate);
+            const absence = getAbsenceType(emp, dateStr);
+            const sub = isSub(emp, dateStr);
+
+            // Если сотрудник на подмене - считаем как работающего
+            if (sub) {
+                dayWorkers++;
+                if (hasNightShiftEmployees) nightWorkers++;
+                return;
+            }
+
+            // Если сотрудник в отпуске/больничном/отгуле/учебе - пропускаем
+            if (absence) return;
+
+            // Считаем работающих по графику
+            if (baseStatus === 'work') {
+                dayWorkers++;
+            } else if (baseStatus === 'night') {
+                nightWorkers++;
+            }
+
+            // === ПРАВИЛА ПОДМЕНЫ ===
+            // Кандидаты на ДНЕВНУЮ подмену: сотрудник на выходном (off или holiday)
+            if (baseStatus === 'off' || baseStatus === 'holiday') {
+                availableDaySubs.push(emp);
+            }
+
+            // Кандидаты на НОЧНУЮ подмену: выходной ИЛИ дневная смена,
+            // следующий день НЕ должен быть дневной сменой
+            if ((baseStatus === 'off' || baseStatus === 'holiday' || baseStatus === 'work') &&
+                nextBaseStatus !== 'work') {
+                availableNightSubs.push(emp);
+            }
+        });
+
+        days.push({
+            day: d,
+            dateStr: dateStr,
+            hasNight: hasNightShiftEmployees,
+            dayWorkers: dayWorkers,
+            nightWorkers: nightWorkers,
+            daySubs: availableDaySubs,
+            nightSubs: availableNightSubs,
+            dayGap: dayWorkers < 1,
+            nightGap: hasNightShiftEmployees && nightWorkers < 1
+        });
+    }
+    return days;
+}
+
+// === СОРТИРОВКА СОТРУДНИКОВ ПО ГРУППАМ И ДОЛЖНОСТЯМ ===
+function getSortedEmployees() {
+    const groupOrder = { 'руководство': 1, 'окк ангар': 2, 'окк перрон': 3 };
+    const roleOrder = { 'Начальник отдела': 1, 'Зам. начальника отдела': 2, 'Ведущий инженер': 3, 'Инженер': 4 };
+
+    return [...employees].sort((a, b) => {
+        const groupA = groupOrder[a.group] || 99;
+        const groupB = groupOrder[b.group] || 99;
+        if (groupA !== groupB) return groupA - groupB;
+
+        const roleA = roleOrder[a.role] || 99;
+        const roleB = roleOrder[b.role] || 99;
+        if (roleA !== roleB) return roleA - roleB;
+
+        return a.name.localeCompare(b.name);
+    });
+}
+
+function getGroupLabel(group) {
+    const labels = {
+        'руководство': '👔 Руководство',
+        'окк ангар': '🔧 ОКК Ангар',
+        'окк перрон': '⚡ ОКК Перрон'
+    };
+    return labels[group] || escapeHtml(group);
+}
+
+// Класс индикатора дефицита для колонки дня
+function getGapColumnClass(dayInfo) {
+    if (dayInfo.dayGap && dayInfo.nightGap) return 'col-gap-both';
+    if (dayInfo.dayGap) return 'col-gap-day';
+    if (dayInfo.nightGap) return 'col-gap-night';
+    return '';
+}
+
+// === ОТРИСОВКА ===
+function render() {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const todayStr = formatDate(new Date());
+
+    document.getElementById('currentMonthDisplay').textContent =
+        MONTH_NAMES_NOM[month] + ' ' + year;
+
+    // Применяем режим отображения
+    applyCompactMode();
+
+    // Один расчёт покрытия на весь месяц (таблица + панель анализа + строка итогов)
+    const coverage = computeCoverage(year, month, daysInMonth);
+
+    let headHtml = '<tr><th class="name-col" scope="col">Сотрудник / Должность / Таб.№</th>';
+    for (let d = 1; d <= daysInMonth; d++) {
+        const date = new Date(year, month, d);
+        const dayOfWeek = date.getDay();
+        const isWeekend = (dayOfWeek === 0 || dayOfWeek === 6);
+        const holiday = isHoliday(date);
+        const dateStr = formatDate(date);
+        const dayName = date.toLocaleString('ru-RU', { weekday: 'short' });
+
+        let headerClass = 'day-header day-col';
+        if (holiday) headerClass += ' holiday';
+        else if (isWeekend) headerClass += ' weekend';
+        const gapClass = getGapColumnClass(coverage[d - 1]);
+        if (gapClass) headerClass += ' ' + gapClass;
+        if (dateStr === todayStr) headerClass += ' today';
+
+        const holidayMark = holiday ? '★' : '';
+        // День недели выносится в подсказку
+        const tooltip = escapeHtml(`${dayName}${holiday ? ', ' + holiday : ''}`);
+        headHtml += `<th scope="col" class="${headerClass}" title="${tooltip}">${d}${holidayMark}</th>`;
+    }
+    // Колонка действий скрыта (кнопка перенесена в строку имени)
+    headHtml += '<th class="actions-col"></th></tr>';
+    document.getElementById('tableHead').innerHTML = headHtml;
+
+    const sortedEmployees = getSortedEmployees();
+    let bodyHtml = '';
+    let currentGroup = null;
+
+    sortedEmployees.forEach(emp => {
+        if (emp.group !== currentGroup) {
+            currentGroup = emp.group;
+            bodyHtml += `<tr class="group-header-row"><td colspan="${daysInMonth + 2}">${getGroupLabel(emp.group)}</td></tr>`;
+        }
+
+        const safeName = escapeHtml(emp.name);
+        const safeRole = escapeHtml(emp.role);
+        const safeNumber = escapeHtml(emp.number || '');
+
+        // Ячейка с именем и кнопкой редактирования
+        bodyHtml += `<tr>
+            <td class="name-col">
+                <div class="employee-cell">
+                    <div class="employee-info" title="${escapeHtml(emp.name + ' | ' + emp.role + ' | ' + (emp.number || '') + ' | ' + getShiftName(emp.shift))}">
+                        <strong>${safeName}</strong><br>
+                        <small style="color: #666;">${safeRole}, ${safeNumber}</small>
+                    </div>
+                    <button class="btn-icon edit-only" onclick="openEditModal(${emp.id})" title="Редактировать: ${safeName}" aria-label="Редактировать данные сотрудника ${safeName}">✏️</button>
+                </div>
+            </td>`;
+
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
+            const dateStr = formatDate(date);
+            const status = getShiftStatus(emp, date);
+
+            let cellClass = '';
+            let cellText = '';
+
+            if (status === 'work') { cellClass = 'cell-work'; cellText = 'Д'; }
+            else if (status === 'night') { cellClass = 'cell-night'; cellText = 'Н'; }
+            else if (status === 'off') { cellClass = 'cell-off'; cellText = 'В'; }
+            else if (status === 'holiday') { cellClass = 'cell-holiday'; cellText = 'ПР'; }
+            else if (status === 'vacation') { cellClass = 'cell-vacation'; cellText = 'О'; }
+            else if (status === 'sick') { cellClass = 'cell-sick'; cellText = 'Б'; }
+            else if (status === 'timeoff') { cellClass = 'cell-timeoff'; cellText = 'ДО'; }
+            else if (status === 'study') { cellClass = 'cell-study'; cellText = 'У'; }
+            else if (status === 'sub') { cellClass = 'cell-sub'; cellText = 'П'; }
+
+            const gapClass = getGapColumnClass(coverage[d - 1]);
+            if (gapClass) cellClass += ' ' + gapClass;
+            if (dateStr === todayStr) cellClass += ' today-col';
+
+            const dayName = date.toLocaleString('ru-RU', { weekday: 'short' });
+            const tooltip = escapeHtml(`${emp.name}, ${dateStr} (${dayName}): ${getStatusName(status)}`);
+            bodyHtml += `<td class="${cellClass}" title="${tooltip}">${cellText}</td>`;
+        }
+        // Пустая ячейка для скрытой колонки действий
+        bodyHtml += `<td class="actions-col"></td></tr>`;
+    });
+
+    // === СТРОКА ИТОГОВ: контроль загрузки по дням (дневные/ночные смены) ===
+    let totalsHtml = `<tr class="totals-row"><td class="totals-label">Итого смен (Д/Н):</td>`;
+    coverage.forEach(c => {
+        const gapClass = getGapColumnClass(c);
+        let totalClass = gapClass;
+        let gapNote = '';
+        if (c.dayGap) { totalClass += ' total-gap-day'; gapNote += ' ДЕФИЦИТ дневной смены;'; }
+        if (c.nightGap) { totalClass += ' total-gap-night'; gapNote += ' ДЕФИЦИТ ночной смены;'; }
+        if (c.dateStr === todayStr) totalClass += ' today-col';
+        const counts = c.hasNight ? `Д:${c.dayWorkers} Н:${c.nightWorkers}` : `Д:${c.dayWorkers}`;
+        const totalTitle = escapeHtml(`${c.day} ${MONTH_NAMES[month]}: дневных — ${c.dayWorkers}, ночных — ${c.nightWorkers}${gapNote}`);
+        totalsHtml += `<td class="${totalClass}" title="${totalTitle}">${counts}</td>`;
+    });
+    totalsHtml += '<td class="actions-col"></td></tr>';
+    bodyHtml += totalsHtml;
+
+    document.getElementById('tableBody').innerHTML = bodyHtml;
+
+    analyzeCoverage(coverage, month);
+    saveToLocalStorage();
+}
+
+function getShiftName(shift) {
+    if (shift === '5_2') return '5/2 (Пн-Пт)';
+    if (shift === '2_2') return '2/2 (Д-Д-В-В)';
+    if (shift === 'DDNN3') return 'Д-Д-В-Н-Н-3В';
+    return shift;
+}
+
+function getStatusName(status) {
+    const names = {
+        'work': 'Дневная смена', 'night': 'Ночная смена', 'off': 'Выходной',
+        'holiday': 'Праздник', 'vacation': 'Отпуск', 'sick': 'Больничный',
+        'timeoff': 'Отгул', 'study': 'Учеба', 'sub': 'Подмена (работа в выходной)'
+    };
+    return names[status] || status;
+}
+
+// === АНАЛИЗ ПОКРЫТИЯ (рендеринг панели на основе computeCoverage) ===
+function analyzeCoverage(coverage, month) {
+    const dayGaps = coverage.filter(c => c.dayGap)
+        .map(c => ({ day: c.day, dateStr: c.dateStr, workers: c.dayWorkers, candidates: c.daySubs }));
+    const nightGaps = coverage.filter(c => c.nightGap)
+        .map(c => ({ day: c.day, dateStr: c.dateStr, workers: c.nightWorkers, candidates: c.nightSubs }));
+    const allGaps = [
+        ...dayGaps.map(g => ({ ...g, type: 'day' })),
+        ...nightGaps.map(g => ({ ...g, type: 'night' }))
+    ].sort((a, b) => a.day - b.day || (a.type === 'night' ? 1 : -1));
+
+    const container = document.getElementById('combinedCoverage');
+    const monthName = MONTH_NAMES[month];
+
+    if (allGaps.length === 0) {
+        container.innerHTML = '<div class="coverage-success">✅ Все смены закрыты. Подмены не требуются.</div>';
+        return;
+    }
+
+    let html = '';
+
+    // Карточки по каждому проблемному дню
+    allGaps.forEach(gap => {
+        const isNight = gap.type === 'night';
+        const cardClass = isNight ? 'night-gap' : 'day-gap';
+        const icon = isNight ? '' : '⚠️';
+        const shiftName = isNight ? 'НОЧНАЯ СМЕНА' : 'ДНЕВНАЯ СМЕНА';
+        const severity = isNight ? 'КРИТИЧЕСКИЙ ДЕФИЦИТ' : 'Дефицит';
+
+        html += `<div class="coverage-card ${cardClass}">`;
+        html += `<div class="card-header">${icon} ${gap.day} ${monthName} — ${shiftName}</div>`;
+        html += `<div>${severity}: работает <strong>${gap.workers}</strong> чел. (минимум 1)</div>`;
+
+        if (gap.candidates.length > 0) {
+            html += `<div class="candidates"><strong>Кандидаты на подмену (${gap.candidates.length} чел.):</strong>`;
+            gap.candidates.forEach(c => {
+                html += `<span class="candidate-name">• ${escapeHtml(c.name)} <small style="color:#666;">(${escapeHtml(c.role)}, ${escapeHtml(c.group.toUpperCase())}, ${getShiftName(c.shift)})</small> <button class="btn-sm btn-success edit-only" onclick="assignSub(${c.id}, '${gap.dateStr}')" title="Назначить подмену: ${escapeHtml(c.name)}, ${gap.dateStr}">Назначить</button></span>`;
+            });
+            html += `</div>`;
+        } else {
+            html += `<div class="candidates"><span class="no-candidates">⚠️ Нет свободных сотрудников для подмены!</span></div>`;
+        }
+        html += `</div>`;
+    });
+
+    // Сводная статистика
+    if (dayGaps.length > 0 || nightGaps.length > 0) {
+        html += `<div class="summary-list">`;
+        html += `<strong>📊 Сводка по месяцу (${MONTH_NAMES_NOM[month]}):</strong>`;
+        if (dayGaps.length > 0) {
+            html += `<div style="margin-top:4px;">Дней без дневной смены: <strong>${dayGaps.length}</strong> — `;
+            html += dayGaps.map(g => `<span class="day-tag">${g.day} ${monthName}</span>`).join('');
+            html += `</div>`;
+        }
+        if (nightGaps.length > 0) {
+            html += `<div style="margin-top:4px;">Дней без ночной смены: <strong>${nightGaps.length}</strong> — `;
+            html += nightGaps.map(g => `<span class="day-tag night">${g.day} ${monthName}</span>`).join('');
+            html += `</div>`;
+        }
+        html += `</div>`;
+    }
+
+    container.innerHTML = html;
+}
+
+// === НАЗНАЧЕНИЕ ПОДМЕНЫ В ОДИН КЛИК ===
+function assignSub(empId, dateStr) {
+    if (!requireEdit()) return;
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+    if (emp.subs.some(s => s.date === dateStr)) {
+        alert(`${emp.name} уже назначен на подмену ${dateStr}.`);
+        return;
+    }
+    // Сотрудник в отпуске/на больничном/отгуле/учебе — на подмену не выходит
+    if (getAbsenceType(emp, dateStr)) {
+        alert(`${emp.name} недоступен для подмены ${dateStr}: ${getStatusName(getAbsenceType(emp, dateStr))}.`);
+        return;
+    }
+    emp.subs.push({ date: dateStr });
+    saveToLocalStorage();
+    render();
+}
+
+// === УПРАВЛЕНИЕ МОДАЛЬНЫМИ ОКНАМИ ===
+function closeModal(modalId) {
+    document.getElementById(modalId).style.display = 'none';
+}
+
+function openAddModal() {
+    document.getElementById('newEmpName').value = '';
+    document.getElementById('newEmpNumber').value = '';
+    document.getElementById('addModal').style.display = 'flex';
+}
+
+function addEmployee() {
+    if (!requireEdit()) return;
+    const name = document.getElementById('newEmpName').value.trim();
+    const number = document.getElementById('newEmpNumber').value.trim();
+    if (!name) { alert('Введите ФИО'); return; }
+
+    const newId = employees.length > 0 ? Math.max(...employees.map(e => e.id)) + 1 : 1;
+    employees.push({
+        id: newId, name: name, number: number,
+        group: document.getElementById('newEmpGroup').value,
+        role: document.getElementById('newEmpRole').value,
+        shift: document.getElementById('newEmpShift').value,
+        offset: parseInt(document.getElementById('newEmpOffset').value),
+        absences: [], subs: []
+    });
+    closeModal('addModal');
+    render();
+}
+
+function openEditModal(empId) {
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    document.getElementById('editEmpId').value = emp.id;
+    document.getElementById('editModalTitle').textContent = `Редактирование: ${emp.name}`;
+    document.getElementById('editName').value = emp.name;
+    document.getElementById('editNumber').value = emp.number || '';
+    document.getElementById('editGroup').value = emp.group || DEFAULT_GROUP;
+    document.getElementById('editRole').value = emp.role;
+    document.getElementById('editShift').value = emp.shift;
+    document.getElementById('editOffset').value = emp.offset;
+
+    document.getElementById('absenceList').innerHTML = '';
+    emp.absences.forEach(abs => addAbsenceRow(abs.type, abs.start, abs.end));
+    if (emp.absences.length === 0) addAbsenceRow();
+
+    document.getElementById('subList').innerHTML = '';
+    emp.subs.forEach(sub => addSubRow(sub.date));
+    if (emp.subs.length === 0) addSubRow();
+
+    document.getElementById('editModal').style.display = 'flex';
+}
+
+function addAbsenceRow(type='vacation', start='', end='') {
+    const container = document.getElementById('absenceList');
+    const div = document.createElement('div');
+    div.className = 'form-row';
+    div.innerHTML = `
+        <select class="abs-type" style="width: 120px;">
+            <option value="vacation" ${type==='vacation'?'selected':''}>О - Отпуск</option>
+            <option value="sick" ${type==='sick'?'selected':''}>Б - Больничный</option>
+            <option value="timeoff" ${type==='timeoff'?'selected':''}>ДО - Отгул</option>
+            <option value="study" ${type==='study'?'selected':''}>У - Учеба</option>
+        </select>
+        <input type="date" class="abs-start" value="${start}" required>
+        <span>по</span>
+        <input type="date" class="abs-end" value="${end}" required>
+        <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()" aria-label="Удалить период отсутствия">×</button>
+    `;
+    container.appendChild(div);
+}
+
+function addSubRow(date='') {
+    const container = document.getElementById('subList');
+    const div = document.createElement('div');
+    div.className = 'form-row';
+    div.innerHTML = `
+        <span style="color: var(--sub-text); font-weight: bold;">П</span>
+        <input type="date" class="sub-date" value="${date}" required>
+        <button type="button" class="btn-sm btn-danger" onclick="this.parentElement.remove()" aria-label="Удалить день подмены">×</button>
+    `;
+    container.appendChild(div);
+}
+
+function saveEmployeeData() {
+    if (!requireEdit()) return;
+    const empId = parseInt(document.getElementById('editEmpId').value);
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+
+    emp.name = document.getElementById('editName').value.trim();
+    emp.number = document.getElementById('editNumber').value.trim();
+    emp.group = document.getElementById('editGroup').value;
+    emp.role = document.getElementById('editRole').value;
+    emp.shift = document.getElementById('editShift').value;
+    emp.offset = parseInt(document.getElementById('editOffset').value);
+
+    emp.absences = [];
+    document.querySelectorAll('#absenceList .form-row').forEach(row => {
+        const type = row.querySelector('.abs-type').value;
+        const start = row.querySelector('.abs-start').value;
+        const end = row.querySelector('.abs-end').value;
+        if (start && end && start <= end) {
+            emp.absences.push({ type, start, end });
+        }
+    });
+
+    emp.subs = [];
+    const skippedSubs = [];
+    document.querySelectorAll('#subList .form-row').forEach(row => {
+        const date = row.querySelector('.sub-date').value;
+        if (!date) return;
+        // Подмена не может попадать в период отсутствия
+        if (getAbsenceType(emp, date)) {
+            skippedSubs.push(date);
+            return;
+        }
+        emp.subs.push({ date });
+    });
+
+    if (skippedSubs.length > 0) {
+        alert('Следующие дни подмены не сохранены, так как попадают в периоды отсутствия:\n' + skippedSubs.join(', '));
+    }
+
+    closeModal('editModal');
+    render();
+}
+
+function deleteCurrentEmployee() {
+    if (!requireEdit()) return;
+    const empId = parseInt(document.getElementById('editEmpId').value);
+    if (confirm('Удалить сотрудника?')) {
+        employees = employees.filter(e => e.id !== empId);
+        closeModal('editModal');
+        render();
+    }
+}
+
+function changeMonth(delta) {
+    currentDate.setMonth(currentDate.getMonth() + delta);
+    render();
+}
+
+function exportData() {
+    const dataStr = JSON.stringify({ version: DATA_VERSION, currentDate: currentDate.toISOString(), employees: employees, isCompactMode: isCompactMode }, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `QC_Schedule_${formatDate(currentDate)}.json`;
+    a.click();
+}
+
+function importData(input) {
+    if (!requireEdit()) { input.value = ''; return; }
+    const file = input.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (!validateScheduleData(data)) {
+                alert('Ошибка: файл не прошёл проверку структуры. Убедитесь, что это корректный экспорт графика.');
+                input.value = '';
+                return;
+            }
+            currentDate = new Date(data.currentDate);
+            isCompactMode = data.isCompactMode !== undefined ? data.isCompactMode : true;
+            employees = data.employees.map(sanitizeEmployee);
+            render();
+            alert('Данные загружены!');
+        } catch (err) {
+            alert('Ошибка файла!');
+        }
+        input.value = '';
+    };
+    reader.readAsText(file);
+}
+
+function exportPDF() {
+    const element = document.getElementById('calendarContent');
+    const opt = {
+        margin: 5,
+        filename: `График_ОКК_${MONTH_NAMES_NOM[currentDate.getMonth()]}_${currentDate.getFullYear()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a3', orientation: 'landscape' }
+    };
+
+    html2pdf().set(opt).from(element).save();
+}
+
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal')) {
+        event.target.style.display = 'none';
+    }
+}
+
+// === ИНИЦИАЛИЗАЦИЯ ===
+if (!loadFromLocalStorage()) {
+    render();
+} else {
+    render();
+}
+applyEditMode();
+const savedSyncTS = localStorage.getItem('qcLastSync');
+lastSyncTime = savedSyncTS ? Number(savedSyncTS) : null;
+updateSyncStatus(lastSyncTime ? 'ok' : 'none');
+initCloud();
+
+// Регистрация service worker — работает только по http/https (GitHub Pages), не с file://
+if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW не зарегистрирован:', e));
+    });
+}
+</script>
+
+</body>
+</html>
